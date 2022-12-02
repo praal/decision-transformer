@@ -13,7 +13,9 @@ from decision_transformer.models.decision_transformer import DecisionTransformer
 from decision_transformer.models.mlp_bc import MLPBCModel
 from decision_transformer.training.act_trainer import ActTrainer
 from decision_transformer.training.seq_trainer import SequenceTrainer
+from src.craft import Craft
 
+from dm_alchemy import symbolic_alchemy
 
 def discount_cumsum(x, gamma):
     discount_cumsum = np.zeros_like(x)
@@ -56,14 +58,28 @@ def experiment(
         max_ep_len = 100
         env_targets = [76, 40]
         scale = 10.
+     
+    elif env_name == 'alchemy':
+        max_ep_len = 200
+        level_name = 'alchemy/perceptual_mapping_randomized_with_rotation_and_random_bottleneck'
+        env = symbolic_alchemy.get_symbolic_alchemy_level(level_name, seed=314)
+        env_targets = []
+        scale = 100.
+    elif env_name == 'craft':
+        max_ep_len = 150
+        seed = 2022
+        rng = random.Random(seed)
+        env = Craft("./src/maps/fourobjects.txt", rng)
+        env_targets = []
+        scale = 100.
     else:
         raise NotImplementedError
 
     if model_type == 'bc':
         env_targets = env_targets[:1]  # since BC ignores target, no need for different evaluations
 
-    state_dim = env.observation_space.shape[0]
-    act_dim = env.action_space.shape[0]
+    state_dim = 6
+    act_dim = 1
 
     # load dataset
     dataset_path = f'data/{env_name}-{dataset}-v2.pkl'
@@ -278,6 +294,10 @@ def experiment(
         outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
         if log_to_wandb:
             wandb.log(outputs)
+        if iter % 20 == 0:
+            PATH = "./DT-Alchemy-100"
+            PATH += str(iter)
+            torch.save(model, PATH)
 
 
 if __name__ == '__main__':
