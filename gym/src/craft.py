@@ -115,14 +115,16 @@ class Craft(Environment):
         if x < 0 or y < 0 or x >= self.width or y >= self.height or \
                 "wall" in self.map_data[y][x]:
             reward, done = self.cost(self.state, a, self.state)
-            return self.state, reward, done, ""
+            ret_state = [self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]]
+            return ret_state, reward, done, ""
 
         objects = self.map_data[y][x]
         new_facts = update_facts(self.state.facts, objects, self.graph, (a == self.num_actions - 1))
         reward, done = self.cost(self.state, a, CraftState(x, y, new_facts))
         self.state = CraftState(x, y, new_facts)
         logging.debug("success, current state is %s", self.state)
-        return self.state, reward, done, ""
+        ret_state = [self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]]
+        return ret_state, reward, done, ""
 
     def cost(self, s0: CraftState, a: int, s1: CraftState):
         cnt0 = 0
@@ -171,6 +173,7 @@ class Craft(Environment):
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
             for i in range(len(order) - 1):
                 self.graph[order[i]][order[i+1]] = 1
+        return [self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]]
 
     @staticmethod
     def label(state: CraftState) -> FrozenSet[int]:
