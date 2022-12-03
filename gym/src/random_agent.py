@@ -14,21 +14,18 @@ def generate_dataset():
     for _ in range(episodes):
         tmp = {'observations': [], 'actions': [], 'rewards': [], 'dones': []}
         env.reset()
-        cnt = 0
+        tot_reward = 0
         for t in range(episode_len):
             s0 = env.state
-            if cnt > 3:
-                a = env.rng.randint(0, env.num_actions-2)
-            else:
-                a = env.rng.randint(0, env.num_actions-1)
+            a = env.rng.randint(0, env.num_actions-1)
             s1, reward, done, info = env.step(a)
-            if reward > 0:
-                cnt += reward
+            tot_reward += reward
             tmp['observations'].append([s0.uid[0], s0.uid[1]] + [int(elem) for elem in s0.uid[2]])
             tmp['actions'].append(a)
             tmp['rewards'].append(reward)
             tmp['dones'].append(done)
             if done:
+                print(tot_reward, "*")
                 print(t,"observations", [s0.uid[0], s0.uid[1]] + [int(elem) for elem in s0.uid[2]], "next", s1, "actions", a, "rewards", reward, "dones", done)
 
         tmp['observations'] = np.array(tmp['observations'])
@@ -36,7 +33,7 @@ def generate_dataset():
         tmp['rewards'] = np.array(tmp['rewards'])
         tmp['dones'] = np.array(tmp['dones'])
         dataset.append(tmp)
-    with open("craft-medium-v2.pkl", 'wb') as handle:
+    with open("craft-easy-v1.pkl", 'wb') as handle:
         pickle.dump(dataset, handle)
 
 generate_dataset()

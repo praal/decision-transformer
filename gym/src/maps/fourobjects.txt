@@ -1,8 +1,6 @@
-XXXXXXXX
-X     hX
-X  w   X
-X      X
-X    f X
-Xg     X
-X      X
-XXXXXXXX
+XXXXXX
+X   hX
+X w  X
+X   fX
+X g  X
+XXXXXX

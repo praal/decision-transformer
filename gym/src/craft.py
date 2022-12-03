@@ -2,7 +2,7 @@ import logging
 from random import Random
 from typing import FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple
 
-from .environment import Environment, Observation, State
+from environment import Environment, Observation, State
 import numpy as np
 
 ACTIONS: List[Tuple[int, int]] = [
@@ -58,8 +58,8 @@ class CraftState(State):
                map_data: Sequence[Sequence[Observation]]) -> 'CraftState':
         # return CraftState(5, 5, set())
         while True:
-            y = rng.randrange(len(map_data))
-            x = rng.randrange(len(map_data[0]))
+            y = 1
+            x = 1
             if "wall" not in map_data[y][x]:
                 return CraftState(x, y,())
 
@@ -101,7 +101,8 @@ class Craft(Environment):
         self.rng = rng
         self.graph = graph
         if graph is None:
-            order = np.random.permutation(len(OBJECTS))
+            #order = np.random.permutation(len(OBJECTS))
+            order = [0, 1, 2, 3]
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
             for i in range(len(order) - 1):
                 self.graph[order[i]][order[i+1]] = 1
@@ -145,8 +146,8 @@ class Craft(Environment):
 
         if cnt1 > cnt0:
             cost = 1
-        if all_done:
-            cost = 2
+        if all_done and cnt1 == cnt0:
+            cost = 0
 
         return cost, all_done
 
@@ -158,13 +159,15 @@ class Craft(Environment):
             self.state = state
             self.graph = graph
             if self.graph is None:
-                order = np.random.permutation(len(OBJECTS))
+                #order = np.random.permutation(len(OBJECTS))
+                order = [0, 1, 2, 3]
                 self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
                 for i in range(len(order) - 1):
                     self.graph[order[i]][order[i + 1]] = 1
         else:
             self.state = CraftState.random(self.rng, self.map_data)
-            order = np.random.permutation(len(OBJECTS))
+            #order = np.random.permutation(len(OBJECTS))
+            order = [0, 1, 2, 3]
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
             for i in range(len(order) - 1):
                 self.graph[order[i]][order[i+1]] = 1
