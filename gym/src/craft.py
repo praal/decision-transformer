@@ -2,7 +2,7 @@ import logging
 from random import Random
 from typing import FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple
 
-from .environment import Environment, Observation, State
+from rl.environment import Environment, Observation, State
 import numpy as np
 
 ACTIONS: List[Tuple[int, int]] = [
@@ -16,12 +16,11 @@ ACTIONS: List[Tuple[int, int]] = [
 OBJECTS = dict([(v, k) for k, v in enumerate(
    ["wood", "iron", "gold"])])
 
-
-
 def update_facts(facts: Sequence[bool], objects: Observation, graph, do_action = False) -> Set[int]:
     state = set([i for i, v in enumerate(facts) if v])
     if not do_action:
         return state
+
     for o in objects:
         if o in OBJECTS:
             ind = OBJECTS[o]
@@ -77,6 +76,7 @@ MAPPING: Mapping[str, FrozenSet[str]] = {
 
 def load_map(map_fn: str) -> Tuple[Tuple[Observation, ...], ...]:
     with open(map_fn) as map_file:
+
         array = []
         for l in map_file:
             if len(l.rstrip()) == 0:
@@ -145,7 +145,8 @@ class Craft(Environment):
           #  if s1.x == self.width - 2 and s1.y == self.height - 2:
           #      all_done = True
           #  else:
-  
+             #   all_done = False
+
         if all_done:
             cost = 1
 
@@ -176,3 +177,4 @@ class Craft(Environment):
     @staticmethod
     def label(state: CraftState) -> FrozenSet[int]:
         return frozenset([i for i in range(len(OBJECTS)) if state.facts[i]])
+
