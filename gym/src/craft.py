@@ -2,7 +2,7 @@ import logging
 from random import Random
 from typing import FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple
 
-from environment import Environment, Observation, State
+from rl.environment import Environment, Observation, State
 import numpy as np
 
 ACTIONS: List[Tuple[int, int]] = [
@@ -14,14 +14,14 @@ ACTIONS: List[Tuple[int, int]] = [
 ]
 
 OBJECTS = dict([(v, k) for k, v in enumerate(
-   ["wood", "iron", "gold", "gem"])])
-
+   ["wood", "iron", "gold"])])
 
 
 def update_facts(facts: Sequence[bool], objects: Observation, graph, do_action = False) -> Set[int]:
     state = set([i for i, v in enumerate(facts) if v])
     if not do_action:
         return state
+
     for o in objects:
         if o in OBJECTS:
             ind = OBJECTS[o]
@@ -77,6 +77,7 @@ MAPPING: Mapping[str, FrozenSet[str]] = {
 
 def load_map(map_fn: str) -> Tuple[Tuple[Observation, ...], ...]:
     with open(map_fn) as map_file:
+
         array = []
         for l in map_file:
             if len(l.rstrip()) == 0:
@@ -102,7 +103,7 @@ class Craft(Environment):
         self.graph = graph
         if graph is None:
             #order = np.random.permutation(len(OBJECTS))
-            order = [0, 1, 2, 3]
+            order = [0, 1, 2]
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
             for i in range(len(order) - 1):
                 self.graph[order[i]][order[i+1]] = 1
@@ -115,7 +116,7 @@ class Craft(Environment):
         if x < 0 or y < 0 or x >= self.width or y >= self.height or \
                 "wall" in self.map_data[y][x]:
             reward, done = self.cost(self.state, a, self.state)
-            ret_state = [self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]]
+            ret_state = np.array([self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]])
             return ret_state, reward, done, ""
 
         objects = self.map_data[y][x]
@@ -123,14 +124,14 @@ class Craft(Environment):
         reward, done = self.cost(self.state, a, CraftState(x, y, new_facts))
         self.state = CraftState(x, y, new_facts)
         logging.debug("success, current state is %s", self.state)
-        ret_state = [self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]]
+        ret_state = np.array([self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]])
         return ret_state, reward, done, ""
 
     def cost(self, s0: CraftState, a: int, s1: CraftState):
         cnt0 = 0
         cnt1 = 0
         all_done = True
-        cost = -1
+        cost = 0
         for fact in s0.facts:
             if fact is True:
                 cnt0 += 1
@@ -146,10 +147,8 @@ class Craft(Environment):
           #  else:
              #   all_done = False
 
-        if cnt1 > cnt0:
+        if all_done:
             cost = 1
-        if all_done and cnt1 == cnt0:
-            cost = 0
 
         return cost, all_done
 
@@ -162,19 +161,20 @@ class Craft(Environment):
             self.graph = graph
             if self.graph is None:
                 #order = np.random.permutation(len(OBJECTS))
-                order = [0, 1, 2, 3]
+                order = [0, 1, 2]
                 self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
                 for i in range(len(order) - 1):
                     self.graph[order[i]][order[i + 1]] = 1
         else:
             self.state = CraftState.random(self.rng, self.map_data)
             #order = np.random.permutation(len(OBJECTS))
-            order = [0, 1, 2, 3]
+            order = [0, 1, 2]
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
             for i in range(len(order) - 1):
                 self.graph[order[i]][order[i+1]] = 1
-        return [self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]]
+        return np.array([self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]])
 
     @staticmethod
     def label(state: CraftState) -> FrozenSet[int]:
         return frozenset([i for i in range(len(OBJECTS)) if state.facts[i]])
+
