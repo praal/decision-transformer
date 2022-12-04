@@ -66,23 +66,23 @@ def experiment(
         env_targets = []
         scale = 100.
     elif env_name == 'craft':
-        max_ep_len = 150
+        max_ep_len = 50
         seed = 2022
         rng = random.Random(seed)
-        env = Craft("./src/maps/fourobjects.txt", rng)
-        env_targets = []
-        scale = 100.
+        env = Craft("./src/maps/threeobjects.txt", rng)
+        env_targets = [0, 1]
+        scale = 1.
     else:
         raise NotImplementedError
 
     if model_type == 'bc':
         env_targets = env_targets[:1]  # since BC ignores target, no need for different evaluations
 
-    state_dim = 6
-    act_dim = 1
+    state_dim = 5
+    act_dim = 5
 
     # load dataset
-    dataset_path = f'data/{env_name}-{dataset}-v2.pkl'
+    dataset_path = f'data/{env_name}-{dataset}-v3.pkl'
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -294,9 +294,9 @@ def experiment(
         outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
         if log_to_wandb:
             wandb.log(outputs)
-        if iter % 20 == 0:
-            PATH = "./DT-Alchemy-100"
-            PATH += str(iter)
+        if iter % 2 == 0:
+            PATH = "./DT-Craft/"
+            PATH += f'craft-easy-{iter}'
             torch.save(model, PATH)
 
 

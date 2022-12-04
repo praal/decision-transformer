@@ -2,7 +2,7 @@ import logging
 from random import Random
 from typing import FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple
 
-from environment import Environment, Observation, State
+from .environment import Environment, Observation, State
 import numpy as np
 
 ACTIONS: List[Tuple[int, int]] = [
@@ -14,7 +14,7 @@ ACTIONS: List[Tuple[int, int]] = [
 ]
 
 OBJECTS = dict([(v, k) for k, v in enumerate(
-   ["wood", "iron", "gold", "gem"])])
+   ["wood", "iron", "gold"])])
 
 
 
@@ -102,7 +102,7 @@ class Craft(Environment):
         self.graph = graph
         if graph is None:
             #order = np.random.permutation(len(OBJECTS))
-            order = [0, 1, 2, 3]
+            order = [0, 1, 2]
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
             for i in range(len(order) - 1):
                 self.graph[order[i]][order[i+1]] = 1
@@ -110,12 +110,13 @@ class Craft(Environment):
         super().__init__(CraftState.random(self.rng, self.map_data))
 
     def step(self, a):
-        x, y = self.state.x + ACTIONS[a][0], self.state.y + ACTIONS[a][1]
+        x = self.state.x + ACTIONS[a][0]
+        y = self.state.y + ACTIONS[a][1]
         logging.debug("applying action %s:%s", a, ACTIONS[a])
         if x < 0 or y < 0 or x >= self.width or y >= self.height or \
                 "wall" in self.map_data[y][x]:
             reward, done = self.cost(self.state, a, self.state)
-            ret_state = [self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]]
+            ret_state = np.array([self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]])
             return ret_state, reward, done, ""
 
         objects = self.map_data[y][x]
@@ -123,14 +124,14 @@ class Craft(Environment):
         reward, done = self.cost(self.state, a, CraftState(x, y, new_facts))
         self.state = CraftState(x, y, new_facts)
         logging.debug("success, current state is %s", self.state)
-        ret_state = [self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]]
+        ret_state = np.array([self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]])
         return ret_state, reward, done, ""
 
     def cost(self, s0: CraftState, a: int, s1: CraftState):
         cnt0 = 0
         cnt1 = 0
         all_done = True
-        cost = -1
+        cost = 0
         for fact in s0.facts:
             if fact is True:
                 cnt0 += 1
@@ -144,12 +145,9 @@ class Craft(Environment):
           #  if s1.x == self.width - 2 and s1.y == self.height - 2:
           #      all_done = True
           #  else:
-             #   all_done = False
-
-        if cnt1 > cnt0:
+  
+        if all_done:
             cost = 1
-        if all_done and cnt1 == cnt0:
-            cost = 0
 
         return cost, all_done
 
@@ -162,18 +160,18 @@ class Craft(Environment):
             self.graph = graph
             if self.graph is None:
                 #order = np.random.permutation(len(OBJECTS))
-                order = [0, 1, 2, 3]
+                order = [0, 1, 2]
                 self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
                 for i in range(len(order) - 1):
                     self.graph[order[i]][order[i + 1]] = 1
         else:
             self.state = CraftState.random(self.rng, self.map_data)
             #order = np.random.permutation(len(OBJECTS))
-            order = [0, 1, 2, 3]
+            order = [0, 1, 2]
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
             for i in range(len(order) - 1):
                 self.graph[order[i]][order[i+1]] = 1
-        return [self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]]
+        return np.array([self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]])
 
     @staticmethod
     def label(state: CraftState) -> FrozenSet[int]:
