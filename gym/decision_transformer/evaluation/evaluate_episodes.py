@@ -136,7 +136,7 @@ def evaluate_episode_rtg(
 
         if done:
             break
-    print("states", states)
-    print("actions", actions)
-    print("rewards", rewards)
+    #print("states", states)
+    #print("actions", actions)
+    #print("rewards", rewards)
     return episode_return, episode_length

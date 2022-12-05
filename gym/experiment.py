@@ -66,11 +66,11 @@ def experiment(
         env_targets = []
         scale = 100.
     elif env_name == 'craft':
-        max_ep_len = 50
+        max_ep_len = 80
         seed = 2022
         rng = random.Random(seed)
-        env = Craft("./src/maps/threeobjects.txt", rng)
-        env_targets = [0, 1]
+        env = Craft("./src/maps/fourobjects.txt", rng)
+        env_targets = [0, 0.1, 0.5, 1]
         scale = 1.
     else:
         raise NotImplementedError
@@ -78,11 +78,12 @@ def experiment(
     if model_type == 'bc':
         env_targets = env_targets[:1]  # since BC ignores target, no need for different evaluations
 
-    state_dim = 5
-    act_dim = 5
+    state_dim = env.observation_space().shape[0]
+    print(state_dim)
+    act_dim = env.action_space()
 
     # load dataset
-    dataset_path = f'data/{env_name}-{dataset}-v3.pkl'
+    dataset_path = f'data/{env_name}-{dataset}-v1.pkl'
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -145,6 +146,8 @@ def experiment(
             si = random.randint(0, traj['rewards'].shape[0] - 1)
 
             # get sequences from dataset
+            print(traj['observations'][si:si + max_len])
+            print(traj['observations'][si:si + max_len].shape)
             s.append(traj['observations'][si:si + max_len].reshape(1, -1, state_dim))
             a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))
             r.append(traj['rewards'][si:si + max_len].reshape(1, -1, 1))
