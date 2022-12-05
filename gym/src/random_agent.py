@@ -1,13 +1,15 @@
+import random
+
 from craft import Craft
 from random import Random
 import pickle
 
 import numpy as np
+dataset = []
 
 def generate_qlearning_dataset():
-    dataset = []
     tmp = {'observations': [], 'actions': [], 'rewards': [], 'dones': []}
-    with open('test2.txt', 'r') as file:
+    with open('test3.txt', 'r') as file:
         lines = file.readlines()
         for l in lines:
             chars = l.strip().split(' ')
@@ -30,43 +32,45 @@ def generate_qlearning_dataset():
             else:
                 tmp['dones'].append(False)
     print(dataset[1]['actions'][1].shape)
-    with open("craft-three-v3.pkl", 'wb') as handle:
+    with open("craft-two-v1.pkl", 'wb') as handle:
         pickle.dump(dataset, handle)
 
 def generate_dataset():
     seed = 2022
     rng = Random(seed)
-    env = Craft("./maps/threeobjects.txt", rng)
-    episodes = 10000
-    episode_len = 50
-    dataset = []
+    env = Craft("./maps/twoobjects.txt", rng)
+    episodes = 50000
+    episode_len = 30
+    cnt = 0
     for _ in range(episodes):
         tmp = {'observations': [], 'actions': [], 'rewards': [], 'dones': []}
-        s0 = env.reset()
+        env.reset()
         tot_reward = 0
         for t in range(episode_len):
             s0 = env.state
+            cnt += 1
+            one_hot_state = env.get_one_hot_state()
             a = env.rng.randint(0, env.num_actions-1)
             s1, reward, done, info = env.step(a)
             tot_reward += reward
-            tmp['observations'].append([s0.uid[0], s0.uid[1]] + [int(elem) for elem in s0.uid[2]])
-            one_hot_action = np.zeros(5)
+            tmp['observations'].append(one_hot_state)
+            one_hot_action = np.zeros(env.num_actions)
             one_hot_action[a] = 1
             tmp['actions'].append(one_hot_action)
             tmp['rewards'].append(reward)
             tmp['dones'].append(done)
             if done:
-                print(tot_reward, "*")
-                print(t,"observations", [s0.uid[0], s0.uid[1]] + [int(elem) for elem in s0.uid[2]], "next", s1, "actions", a, "rewards", reward, "dones", done)
+               # print(tot_reward, "*")
+              #  print(t,"observations", [s0.uid[0], s0.uid[1]] + [int(elem) for elem in s0.uid[2]], "next", s1, "actions", a, "rewards", reward, "dones", done)
                 break
         tmp['observations'] = np.array(tmp['observations'])
         tmp['actions'] = np.array(tmp['actions'])
         tmp['rewards'] = np.array(tmp['rewards'])
         tmp['dones'] = np.array(tmp['dones'])
         dataset.append(tmp)
-    with open("craft-three-v3.pkl", 'wb') as handle:
-        pickle.dump(dataset, handle)
-
+    #with open("craft-three-v3.pkl", 'wb') as handle:
+       # pickle.dump(dataset, handle)
+    print(cnt, "##############")
 def test():
     dataset_path = '../tfe-default-v2.pkl'
     with open(dataset_path, 'rb') as f:
@@ -100,5 +104,54 @@ def test():
     print(f'Max return: {np.max(returns):.2f}, min: {np.min(returns):.2f}')
     print('=' * 50)
 
-#generate_qlearning_dataset()
-test()
+
+def generate_qlearning_one_hot_dataset():
+    tmp = {'observations': [], 'actions': [], 'rewards': [], 'dones': []}
+    seed = 2022
+    rng = Random(seed)
+    env = Craft("./maps/twoobjects.txt", rng)
+    with open('test3.txt', 'r') as file:
+        lines = file.readlines()
+        for l in lines:
+            chars = l.strip().split(' ')
+            if len(chars) == 3:
+                continue
+            if len(chars) == 1:
+                tmp['observations'] = np.array(tmp['observations'])
+                tmp['actions'] = np.array(tmp['actions'])
+                tmp['rewards'] = np.array(tmp['rewards'])
+                tmp['dones'] = np.array(tmp['dones'])
+                dataset.append(tmp)
+                tmp = {'observations': [], 'actions': [], 'rewards': [], 'dones': []}
+                continue
+
+            state_dim= env.observation_space().shape[0]
+            for i in range(state_dim):
+                tmp['observations'].append(int(float(chars[i])))
+
+            one_hot_action = np.zeros(5)
+            one_hot_action[int(chars[state_dim])] = 1
+            tmp['actions'].append(one_hot_action)
+            tmp['rewards'].append(chars[state_dim + 1])
+            if chars[state_dim + 2] == "True":
+                tmp['dones'].append(True)
+            else:
+                tmp['dones'].append(False)
+    print(dataset[1]['actions'][1].shape)
+
+
+   # with open("craft-two-v1.pkl", 'wb') as handle:
+       # pickle.dump(dataset, handle)
+
+
+generate_qlearning_one_hot_dataset()
+print(len(dataset), "@@@")
+print(dataset[-1])
+generate_dataset()
+print(len(dataset), "@")
+print(dataset[-1])
+random.shuffle(dataset)
+print(dataset[-1])
+with open("craft-two-v1.pkl", 'wb') as handle:
+    pickle.dump(dataset, handle)
+#test()

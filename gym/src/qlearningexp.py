@@ -7,7 +7,6 @@ import logging
 from os import path
 from random import Random
 from time import time
-from typing import List, Tuple
 
 from craft import Craft, CraftState
 from rl import Agent, EpsilonGreedy
@@ -71,7 +70,7 @@ def evaluate_agent(env, policy1, reward1, init):
 def run(filename, seed):
 
     here = path.dirname(__file__)
-    map_fn = "./maps/fourobjects.txt"
+    map_fn = "./maps/twoobjects.txt"
     print(map_fn)
     init = [CraftState(1, 1, set())]
 
@@ -79,7 +78,7 @@ def run(filename, seed):
 
     env = Craft(map_fn, rng)
 
-    goal = [OBJECTS["wood"], OBJECTS["iron"], OBJECTS["gold"]]
+    goal = [OBJECTS["wood"], OBJECTS["iron"]]
 
     with open(filename, "w") as csvfile:
         print("ql: begin experiment")
@@ -109,4 +108,4 @@ def run(filename, seed):
             report.writer.writerow("#")
         evaluate_agent(env, policy, reward, init)
 
-run("./test2.txt", 2022)
+run("./test3.txt", 2022)

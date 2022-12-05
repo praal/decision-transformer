@@ -14,7 +14,7 @@ ACTIONS: List[Tuple[int, int]] = [
 ]
 
 OBJECTS = dict([(v, k) for k, v in enumerate(
-   ["wood", "iron", "gold"])])
+   ["wood", "iron"])])
 
 def update_facts(facts: Sequence[bool], objects: Observation, graph, do_action = False) -> Set[int]:
     state = set([i for i, v in enumerate(facts) if v])
@@ -101,8 +101,7 @@ class Craft(Environment):
         self.rng = rng
         self.graph = graph
         if graph is None:
-            #order = np.random.permutation(len(OBJECTS))
-            order = [0, 1, 2]
+            order = [i for i in range(len(OBJECTS))]
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
             for i in range(len(order) - 1):
                 self.graph[order[i]][order[i+1]] = 1
@@ -155,26 +154,46 @@ class Craft(Environment):
     def observe(self, state: CraftState) -> Observation:
         return self.map_data[self.state.y][self.state.x]
 
+    def get_one_hot_state(self):
+        mat = np.zeros((self.height - 2, self.width - 2))
+        for y in range(1, self.height - 1):
+            for x in range(1, self.width - 1):
+                if "wood" in self.map_data[y][x]:
+                    mat[y - 1][x - 1] = 2
+                if "iron" in self.map_data[y][x]:
+                    mat[y - 1][x - 1] = 3
+        mat[self.state.y - 1][self.state.x - 1] = 1
+        masking = len(OBJECTS) + 2
+        flat_mat = mat.reshape(-1).copy().astype(int)
+        one_hot = np.zeros((flat_mat.size, masking))
+        one_hot[np.arange(flat_mat.size), flat_mat] = 1
+        one_hot = one_hot.reshape(-1).copy()
+        return one_hot
+
+
+    def observation_space(self):
+        return self.get_one_hot_state()
+
+    def action_space(self):
+        return self.num_actions
+
     def reset(self, state: Optional[CraftState] = None, graph = None):
         if state is not None:
             self.state = state
             self.graph = graph
             if self.graph is None:
                 #order = np.random.permutation(len(OBJECTS))
-                order = [0, 1, 2]
+                order = [i for i in range(len(OBJECTS))]
                 self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
                 for i in range(len(order) - 1):
                     self.graph[order[i]][order[i + 1]] = 1
         else:
             self.state = CraftState.random(self.rng, self.map_data)
             #order = np.random.permutation(len(OBJECTS))
-            order = [0, 1, 2]
+            order = [i for i in range(len(OBJECTS))]
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
             for i in range(len(order) - 1):
                 self.graph[order[i]][order[i+1]] = 1
-        return np.array([self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]])
+        return self.get_one_hot_state()
 
-    @staticmethod
-    def label(state: CraftState) -> FrozenSet[int]:
-        return frozenset([i for i in range(len(OBJECTS)) if state.facts[i]])
 

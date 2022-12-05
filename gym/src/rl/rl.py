@@ -145,10 +145,10 @@ class Agent:
                 break
 
             s0 = self.environment.state
-
+            one_hot_state = self.environment.get_one_hot_state()
             a = self.policy.get_train_action(s0)
             cur_n_state, cur_reward, cur_done, _ = self.environment.step(a)
-            tmp.append([s0.uid[0], s0.uid[1]] + [int(elem) for elem in s0.uid[2]]+ [a, cur_reward, cur_done])
+            tmp.append(list(one_hot_state) + [a, cur_reward, cur_done])
 
             s1 = self.environment.state
 
@@ -158,13 +158,10 @@ class Agent:
 
             logging.debug("(%s, %s, %s) -> %s", s0, a, s1, step_reward)
 
-            #if step % report.log_step == 0:
-              #  self.evaluate(report.states, report.steps, report.trials,
-                          # name=str(step))
+            if step % report.log_step == 0:
+                self.evaluate(report.states, report.steps, report.trials, name=str(step))
            # if report is not None:
                # report.evaluate(self, step + 1)
-        if not finished:
-            report.dataset.append(tmp)
         logging.debug("End episode (last step was %s, success=%s)", step,
                       finished)
 
