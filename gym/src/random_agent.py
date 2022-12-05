@@ -126,8 +126,10 @@ def generate_qlearning_one_hot_dataset():
                 continue
 
             state_dim= env.observation_space().shape[0]
+            tmptmp = []
             for i in range(state_dim):
-                tmp['observations'].append(int(float(chars[i])))
+                tmptmp.append(int(float(chars[i])))
+            tmp['observations'].append(tmptmp)
 
             one_hot_action = np.zeros(5)
             one_hot_action[int(chars[state_dim])] = 1
@@ -147,6 +149,7 @@ def generate_qlearning_one_hot_dataset():
 generate_qlearning_one_hot_dataset()
 print(len(dataset), "@@@")
 print(dataset[-1])
+print(len(dataset[-1]['observations']))
 generate_dataset()
 print(len(dataset), "@")
 print(dataset[-1])

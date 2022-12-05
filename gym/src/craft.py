@@ -123,7 +123,7 @@ class Craft(Environment):
         reward, done = self.cost(self.state, a, CraftState(x, y, new_facts))
         self.state = CraftState(x, y, new_facts)
         logging.debug("success, current state is %s", self.state)
-        ret_state = np.array([self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]])
+        ret_state = self.get_one_hot_state()
         return ret_state, reward, done, ""
 
     def cost(self, s0: CraftState, a: int, s1: CraftState):
