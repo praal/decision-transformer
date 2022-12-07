@@ -16,8 +16,8 @@ from craft import OBJECTS
 from rl.common import ReachFacts
 
 DEFAULT_Q = 0.0
-TOTAL_STEPS = 500000
-EPISODE_LENGTH = 30
+TOTAL_STEPS = 700000
+EPISODE_LENGTH = 80
 LOG_STEP = 10000
 TRIALS = 5
 
@@ -53,7 +53,6 @@ def evaluate_agent(env, policy1, reward1, init):
             a = policy1.get_best_action(s0)
             next_state, cur_reward, cur_done, _ = env.step(a)
             s1 = env.state
-            print("$$$$", s0, a, next_state, cur_reward, cur_done)
             print_state(s0, a)
             step_reward, finished = reward1(s0, a, s1)
             if not finished:
@@ -70,7 +69,7 @@ def evaluate_agent(env, policy1, reward1, init):
 def run(filename, seed):
 
     here = path.dirname(__file__)
-    map_fn = "./maps/twoobjects.txt"
+    map_fn = "./maps/fourobjects.txt"
     print(map_fn)
     init = [CraftState(1, 1, set())]
 
@@ -78,7 +77,7 @@ def run(filename, seed):
 
     env = Craft(map_fn, rng)
 
-    goal = [OBJECTS["wood"], OBJECTS["iron"]]
+    goal = [OBJECTS["wood"], OBJECTS["iron"], OBJECTS["gold"],  OBJECTS["gem"]]
 
     with open(filename, "w") as csvfile:
         print("ql: begin experiment")
@@ -89,7 +88,7 @@ def run(filename, seed):
         rng.seed(seed)
 
         reward = ReachFacts(env, goal)
-        policy = EpsilonGreedy(alpha=1.0, gamma=0.9, epsilon=0.1,
+        policy = EpsilonGreedy(alpha=1.0, gamma=0.99, epsilon=0.1,
                                default_q=DEFAULT_Q, num_actions=5, rng=rng)
         agent = Agent(env, policy, reward, rng)
         try:

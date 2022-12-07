@@ -38,9 +38,9 @@ def generate_qlearning_dataset():
 def generate_dataset():
     seed = 2022
     rng = Random(seed)
-    env = Craft("./maps/twoobjects.txt", rng)
-    episodes = 50000
-    episode_len = 30
+    env = Craft("./maps/fourobjects.txt", rng)
+    episodes = 10000
+    episode_len = 80
     cnt = 0
     for _ in range(episodes):
         tmp = {'observations': [], 'actions': [], 'rewards': [], 'dones': []}
@@ -109,7 +109,7 @@ def generate_qlearning_one_hot_dataset():
     tmp = {'observations': [], 'actions': [], 'rewards': [], 'dones': []}
     seed = 2022
     rng = Random(seed)
-    env = Craft("./maps/twoobjects.txt", rng)
+    env = Craft("./maps/fourobjects.txt", rng)
     with open('test3.txt', 'r') as file:
         lines = file.readlines()
         for l in lines:
@@ -131,10 +131,10 @@ def generate_qlearning_one_hot_dataset():
                 tmptmp.append(int(float(chars[i])))
             tmp['observations'].append(tmptmp)
 
-            one_hot_action = np.zeros(5)
+            one_hot_action = np.zeros(env.num_actions)
             one_hot_action[int(chars[state_dim])] = 1
             tmp['actions'].append(one_hot_action)
-            tmp['rewards'].append(chars[state_dim + 1])
+            tmp['rewards'].append(int(chars[state_dim + 1]))
             if chars[state_dim + 2] == "True":
                 tmp['dones'].append(True)
             else:
@@ -148,13 +148,10 @@ def generate_qlearning_one_hot_dataset():
 
 generate_qlearning_one_hot_dataset()
 print(len(dataset), "@@@")
-print(dataset[-1])
-print(len(dataset[-1]['observations']))
+print(len(dataset[-1]['observations'][-1]))
 generate_dataset()
-print(len(dataset), "@")
-print(dataset[-1])
+print(len(dataset[-1]['observations'][-1]))
 random.shuffle(dataset)
-print(dataset[-1])
-with open("craft-two-v1.pkl", 'wb') as handle:
+with open("craft-four-v1.pkl", 'wb') as handle:
     pickle.dump(dataset, handle)
 #test()

@@ -14,13 +14,12 @@ ACTIONS: List[Tuple[int, int]] = [
 ]
 
 OBJECTS = dict([(v, k) for k, v in enumerate(
-   ["wood", "iron"])])
+   ["wood", "iron", "gold", "gem"])])
 
 def update_facts(facts: Sequence[bool], objects: Observation, graph, do_action = False) -> Set[int]:
     state = set([i for i, v in enumerate(facts) if v])
     if not do_action:
         return state
-
     for o in objects:
         if o in OBJECTS:
             ind = OBJECTS[o]
@@ -115,7 +114,7 @@ class Craft(Environment):
         if x < 0 or y < 0 or x >= self.width or y >= self.height or \
                 "wall" in self.map_data[y][x]:
             reward, done = self.cost(self.state, a, self.state)
-            ret_state = np.array([self.state.uid[0], self.state.uid[1]] + [int(elem) for elem in self.state.uid[2]])
+            ret_state = self.get_one_hot_state()
             return ret_state, reward, done, ""
 
         objects = self.map_data[y][x]
