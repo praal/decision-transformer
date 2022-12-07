@@ -5,6 +5,7 @@ from typing import FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple
 from rl.environment import Environment, Observation, State
 import numpy as np
 
+
 ACTIONS: List[Tuple[int, int]] = [
     (0, 1),   # down
     (0, -1),  # up
@@ -99,8 +100,8 @@ class Craft(Environment):
         self.width = len(self.map_data[0])
         self.rng = rng
         self.graph = graph
-        if graph is None:
-            order = [i for i in range(len(OBJECTS))]
+        if self.graph is None:
+            order = np.random.permutation(len(OBJECTS))
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
             for i in range(len(order) - 1):
                 self.graph[order[i]][order[i+1]] = 1
@@ -139,12 +140,6 @@ class Craft(Environment):
             else:
                 all_done = False
 
-        #if all_done:
-          #  if s1.x == self.width - 2 and s1.y == self.height - 2:
-          #      all_done = True
-          #  else:
-             #   all_done = False
-
         if all_done:
             cost = 1
 
@@ -161,6 +156,10 @@ class Craft(Environment):
                     mat[y - 1][x - 1] = 2
                 if "iron" in self.map_data[y][x]:
                     mat[y - 1][x - 1] = 3
+                if "gold" in self.map_data[y][x]:
+                    mat[y - 1][x - 1] = 4
+                if "gem" in self.map_data[y][x]:
+                    mat[y - 1][x - 1] = 5
         mat[self.state.y - 1][self.state.x - 1] = 1
         masking = len(OBJECTS) + 2
         flat_mat = mat.reshape(-1).copy().astype(int)
@@ -169,30 +168,27 @@ class Craft(Environment):
         one_hot = one_hot.reshape(-1).copy()
         return one_hot
 
-
     def observation_space(self):
         return self.get_one_hot_state()
 
     def action_space(self):
         return self.num_actions
 
-    def reset(self, state: Optional[CraftState] = None, graph = None):
+    def reset(self, state: Optional[CraftState] = None):
         if state is not None:
             self.state = state
-            self.graph = graph
             if self.graph is None:
-                #order = np.random.permutation(len(OBJECTS))
-                order = [i for i in range(len(OBJECTS))]
+                order = np.random.permutation(len(OBJECTS))
                 self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
                 for i in range(len(order) - 1):
                     self.graph[order[i]][order[i + 1]] = 1
         else:
             self.state = CraftState.random(self.rng, self.map_data)
-            #order = np.random.permutation(len(OBJECTS))
-            order = [i for i in range(len(OBJECTS))]
-            self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
-            for i in range(len(order) - 1):
-                self.graph[order[i]][order[i+1]] = 1
+            if self.graph is None:
+                order = np.random.permutation(len(OBJECTS))
+                self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
+                for i in range(len(order) - 1):
+                    self.graph[order[i]][order[i+1]] = 1
         return self.get_one_hot_state()
 
 
