@@ -66,11 +66,18 @@ def experiment(
         env_targets = []
         scale = 100.
     elif env_name == 'craft':
-        max_ep_len = 80
+        max_ep_len = 100
         seed = 2022
         rng = random.Random(seed)
-        env = Craft("./src/maps/fourobjects.txt", rng)
-        env_targets = [0, 0.1, 0.5, 1]
+        env = Craft("./src/maps/fourobjects.txt", rng, causal=False)
+        env_targets = [0, 1, 2, 3, 4]
+        scale = 1.
+    elif env_name == 'craftcausal':
+        max_ep_len = 100
+        seed = 2022
+        rng = random.Random(seed)
+        env = Craft("./src/maps/fourobjects.txt", rng, causal=True)
+        env_targets = [0, 1, 2, 3, 4]
         scale = 1.
     else:
         raise NotImplementedError
@@ -79,11 +86,11 @@ def experiment(
         env_targets = env_targets[:1]  # since BC ignores target, no need for different evaluations
 
     state_dim = env.observation_space().shape[0]
-    print(state_dim)
+    print(state_dim, env_targets, env_name)
     act_dim = env.action_space()
 
     # load dataset
-    dataset_path = f'data/{env_name}-{dataset}-v1.pkl'
+    dataset_path = f'data/craft-{dataset}-v1.pkl'
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -146,8 +153,6 @@ def experiment(
             si = random.randint(0, traj['rewards'].shape[0] - 1)
 
             # get sequences from dataset
-            print(traj['observations'][si:si + max_len])
-            print(traj['observations'][si:si + max_len].shape)
             s.append(traj['observations'][si:si + max_len].reshape(1, -1, state_dim))
             a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))
             r.append(traj['rewards'][si:si + max_len].reshape(1, -1, 1))
@@ -297,10 +302,10 @@ def experiment(
         outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
         if log_to_wandb:
             wandb.log(outputs)
-        if iter % 2 == 0:
-            PATH = "./DT-Craft/"
-            PATH += f'craft-easy-{iter}'
-            torch.save(model, PATH)
+        #if iter % 2 == 0:
+           # PATH = "./DT-Craft/"
+           # PATH += f'craft-easy-{iter}'
+           # torch.save(model, PATH)
 
 
 if __name__ == '__main__':
