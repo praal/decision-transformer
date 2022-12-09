@@ -168,6 +168,8 @@ class Craft(Environment):
         one_hot = np.zeros((flat_mat.size, masking))
         one_hot[np.arange(flat_mat.size), flat_mat] = 1
         one_hot = one_hot.reshape(-1).copy()
+        causal = np.zeros((1, masking))
+        causal = causal.reshape(-1).copy()
         if self.causal:
             true_facts = 0
             next_goal = 0
@@ -180,10 +182,9 @@ class Craft(Environment):
             goal_one_hot = np.zeros((1, masking))
             goal_one_hot[0][next_goal] = 1
             goal_one_hot = goal_one_hot.reshape(-1).copy()
-            one_hot = np.concatenate([one_hot, goal_one_hot])
-
-
-        return one_hot
+            #one_hot = np.concatenate([one_hot, goal_one_hot])
+            causal = goal_one_hot
+        return [one_hot, causal]
 
     def observation_space(self):
         return self.get_one_hot_state()
