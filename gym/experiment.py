@@ -14,9 +14,9 @@ from decision_transformer.models.mlp_bc import MLPBCModel
 from decision_transformer.training.act_trainer import ActTrainer
 from decision_transformer.training.seq_trainer import SequenceTrainer
 from decision_transformer.training.causal_seq_trainer import CausalSequenceTrainer
-from causal_dt.causal_dt import CausalDecisionTransformerModelV1, CausalDecisionTransformerModelV2
+from causal_dt.causal_dt import CausalDecisionTransformerModelV1, CausalDecisionTransformerModelV2, CausalDecisionTransformerConfig
 
-from transformers.models.decision_transformer import DecisionTransformerModel
+from transformers.models.decision_transformer import DecisionTransformerModel, DecisionTransformerConfig
 from src.craft import Craft
 
 # from dm_alchemy import symbolic_alchemy
@@ -31,13 +31,12 @@ def discount_cumsum(x, gamma):
 
 def experiment(
         exp_prefix,
-        variant,
-        causal_dim = None,
-        causal_version = None
+        variant
 ):
     device = variant.get('device', 'cuda')
     log_to_wandb = variant.get('log_to_wandb', False)
-
+    causal_dim = variant["causal_dim"]
+    causal_version = variant["causal_version"]
     env_name, dataset = variant['env'], variant['dataset']
     model_type = variant['model_type']
     group_name = f'{exp_prefix}-{env_name}-{dataset}'
@@ -68,7 +67,7 @@ def experiment(
     elif env_name == 'alchemy':
         max_ep_len = 200
         level_name = 'alchemy/perceptual_mapping_randomized_with_rotation_and_random_bottleneck'
-        env = symbolic_alchemy.get_symbolic_alchemy_level(level_name, seed=314)
+        # env = symbolic_alchemy.get_symbolic_alchemy_level(level_name, seed=314)
         env_targets = []
         scale = 100.
     elif env_name == 'craft':
@@ -85,7 +84,6 @@ def experiment(
         env_targets = env_targets[:1]  # since BC ignores target, no need for different evaluations
 
     state_dim = env.observation_space().shape[0]
-    print(state_dim)
     act_dim = env.action_space()
 
     # load dataset
@@ -96,13 +94,16 @@ def experiment(
     # save all path information into separate lists
     mode = variant.get('mode', 'normal')
     states, traj_lens, returns = [], [], []
+
     for path in trajectories:
         if mode == 'delayed':  # delayed: all rewards moved to end of trajectory
             path['rewards'][-1] = path['rewards'].sum()
             path['rewards'][:-1] = 0.
+
         states.append(path['observations'])
         traj_lens.append(len(path['observations']))
         returns.append(path['rewards'].sum())
+
     traj_lens, returns = np.array(traj_lens), np.array(returns)
 
     # used for input normalization
@@ -152,8 +153,8 @@ def experiment(
             si = random.randint(0, traj['rewards'].shape[0] - 1)
 
             # get sequences from dataset
-            print(traj['observations'][si:si + max_len])
-            print(traj['observations'][si:si + max_len].shape)
+            # print(traj['observations'][si:si + max_len])
+            # print(traj['observations'][si:si + max_len].shape)
             s.append(traj['observations'][si:si + max_len].reshape(1, -1, state_dim))
             a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))
             r.append(traj['rewards'][si:si + max_len].reshape(1, -1, 1))
@@ -202,8 +203,8 @@ def experiment(
             si = random.randint(0, traj['rewards'].shape[0] - 1)
 
             # get sequences from dataset
-            print(traj['observations'][si:si + max_len])
-            print(traj['observations'][si:si + max_len].shape)
+            # print(traj['observations'][si:si + max_len])
+            # print(traj['observations'][si:si + max_len].shape)
             s.append(traj['observations'][si:si + max_len].reshape(1, -1, state_dim))
             a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))
             r.append(traj['rewards'][si:si + max_len].reshape(1, -1, 1))
@@ -285,53 +286,33 @@ def experiment(
             }
         return fn
 
-    if model_type == 'dt':
-        model = DecisionTransformerModel(
-            state_dim=state_dim,
-            act_dim=act_dim,
-            max_length=K,
-            max_ep_len=max_ep_len,
-            hidden_size=variant['embed_dim'],
-            n_layer=variant['n_layer'],
-            n_head=variant['n_head'],
-            n_inner=4*variant['embed_dim'],
-            activation_function=variant['activation_function'],
-            n_positions=1024,
-            resid_pdrop=variant['dropout'],
-            attn_pdrop=variant['dropout'],
-        )
+    parameters = {
+        "state_dim": state_dim,
+        "act_dim": act_dim,
+        "max_length": K,
+        "max_ep_len": max_ep_len,
+        "hidden_sizef": variant['embed_dim'],
+        "n_layer": variant['n_layer'],
+        "n_head": variant['n_head'],
+        "n_inner": 4 * variant['embed_dim'],
+        "activation_function": variant['activation_function'],
+        "n_positions": 1024,
+        "resid_pdrop": variant['dropout'],
+        "attn_pdrop": variant['dropout'],
+        'return_dict': False
+    }
+
+    if model_type == 'dt' and causal_dim is None:
+        config = DecisionTransformerConfig(**parameters)
+        model = DecisionTransformerModel(config)
     elif causal_version == 'v1':
-        model = CausalDecisionTransformerModelV1(
-            state_dim=state_dim,
-            act_dim=act_dim,
-            causal_structure_dim=causal_dim,
-            max_length=K,
-            max_ep_len=max_ep_len,
-            hidden_size=variant['embed_dim'],
-            n_layer=variant['n_layer'],
-            n_head=variant['n_head'],
-            n_inner=4*variant['embed_dim'],
-            activation_function=variant['activation_function'],
-            n_positions=1024,
-            resid_pdrop=variant['dropout'],
-            attn_pdrop=variant['dropout'],
-        )
+        parameters["causal_structure_dim"] = causal_dim
+        config = CausalDecisionTransformerConfig(**parameters)
+        model = CausalDecisionTransformerModelV1(config)
     elif causal_version == 'v2':
-        model = CausalDecisionTransformerModelV2(
-            state_dim=state_dim,
-            act_dim=act_dim,
-            causal_structure_dim=causal_dim,
-            max_length=K,
-            max_ep_len=max_ep_len,
-            hidden_size=variant['embed_dim'],
-            n_layer=variant['n_layer'],
-            n_head=variant['n_head'],
-            n_inner=4*variant['embed_dim'],
-            activation_function=variant['activation_function'],
-            n_positions=1024,
-            resid_pdrop=variant['dropout'],
-            attn_pdrop=variant['dropout'],
-        )
+        parameters["causal_structure_dim"] = causal_dim
+        config = CausalDecisionTransformerConfig(**parameters)
+        model = CausalDecisionTransformerModelV1(config)
     elif model_type == 'bc':
         model = MLPBCModel(
             state_dim=state_dim,
@@ -426,8 +407,10 @@ if __name__ == '__main__':
     parser.add_argument('--num_eval_episodes', type=int, default=100)
     parser.add_argument('--max_iters', type=int, default=10)
     parser.add_argument('--num_steps_per_iter', type=int, default=10000)
-    parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument('--device', type=str, default='cpu')
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
+    parser.add_argument('--causal_dim', type=int, default=6)
+    parser.add_argument('--causal_version', type=str, default='v1')
     
     args = parser.parse_args()
 
