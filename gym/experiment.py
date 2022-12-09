@@ -9,13 +9,17 @@ import random
 import sys
 
 from decision_transformer.evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg
-from decision_transformer.models.decision_transformer import DecisionTransformer
+# from decision_transformer.models.decision_transformer import DecisionTransformer
 from decision_transformer.models.mlp_bc import MLPBCModel
 from decision_transformer.training.act_trainer import ActTrainer
 from decision_transformer.training.seq_trainer import SequenceTrainer
+from decision_transformer.training.causal_seq_trainer import CausalSequenceTrainer
+from causal_dt.causal_dt import CausalDecisionTransformerModelV1, CausalDecisionTransformerModelV2, CausalDecisionTransformerConfig
+
+from transformers.models.decision_transformer import DecisionTransformerModel, DecisionTransformerConfig
 from src.craft import Craft
 
-from dm_alchemy import symbolic_alchemy
+# from dm_alchemy import symbolic_alchemy
 
 def discount_cumsum(x, gamma):
     discount_cumsum = np.zeros_like(x)
@@ -27,11 +31,12 @@ def discount_cumsum(x, gamma):
 
 def experiment(
         exp_prefix,
-        variant,
+        variant
 ):
     device = variant.get('device', 'cuda')
     log_to_wandb = variant.get('log_to_wandb', False)
-
+    causal_dim = variant["causal_dim"]
+    causal_version = variant["causal_version"]
     env_name, dataset = variant['env'], variant['dataset']
     model_type = variant['model_type']
     group_name = f'{exp_prefix}-{env_name}-{dataset}'
@@ -62,7 +67,7 @@ def experiment(
     elif env_name == 'alchemy':
         max_ep_len = 200
         level_name = 'alchemy/perceptual_mapping_randomized_with_rotation_and_random_bottleneck'
-        env = symbolic_alchemy.get_symbolic_alchemy_level(level_name, seed=314)
+        # env = symbolic_alchemy.get_symbolic_alchemy_level(level_name, seed=314)
         env_targets = []
         scale = 100.
     elif env_name == 'craft':
@@ -97,13 +102,16 @@ def experiment(
     # save all path information into separate lists
     mode = variant.get('mode', 'normal')
     states, traj_lens, returns = [], [], []
+
     for path in trajectories:
         if mode == 'delayed':  # delayed: all rewards moved to end of trajectory
             path['rewards'][-1] = path['rewards'].sum()
             path['rewards'][:-1] = 0.
+
         states.append(path['observations'])
         traj_lens.append(len(path['observations']))
         returns.append(path['rewards'].sum())
+
     traj_lens, returns = np.array(traj_lens), np.array(returns)
 
     # used for input normalization
@@ -186,6 +194,61 @@ def experiment(
         mask = torch.from_numpy(np.concatenate(mask, axis=0)).to(device=device)
 
         return s, a, r, d, rtg, timesteps, mask
+    
+    def get_causal_batch(batch_size=256, max_len=K):
+        batch_inds = np.random.choice(
+            np.arange(num_trajectories),
+            size=batch_size,
+            replace=True,
+            p=p_sample,  # reweights so we sample according to timesteps
+        )
+
+        s, a, r, cs, d, rtg, timesteps, mask = [], [], [], [], [], [], [], []
+        for i in range(batch_size):
+            traj = trajectories[int(sorted_inds[batch_inds[i]])]
+            si = random.randint(0, traj['rewards'].shape[0] - 1)
+
+            # get sequences from dataset
+            # print(traj['observations'][si:si + max_len])
+            # print(traj['observations'][si:si + max_len].shape)
+            s.append(traj['observations'][si:si + max_len].reshape(1, -1, state_dim))
+            a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))
+            r.append(traj['rewards'][si:si + max_len].reshape(1, -1, 1))
+            cs.append(traj['causal_structure'][si:si + max_len].reshape(1, -1, causal_dim))
+
+            if 'terminals' in traj:
+                d.append(traj['terminals'][si:si + max_len].reshape(1, -1))
+            else:
+                d.append(traj['dones'][si:si + max_len].reshape(1, -1))
+
+            timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
+            timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
+            rtg.append(discount_cumsum(traj['rewards'][si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
+            if rtg[-1].shape[1] <= s[-1].shape[1]:
+                rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
+
+            # padding and state + reward normalization
+            tlen = s[-1].shape[1]
+            s[-1] = np.concatenate([np.zeros((1, max_len - tlen, state_dim)), s[-1]], axis=1)
+            s[-1] = (s[-1] - state_mean) / state_std
+            a[-1] = np.concatenate([np.ones((1, max_len - tlen, act_dim)) * -10., a[-1]], axis=1)
+            r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
+            cs[-1] = np.concatenate([np.zeros((1, max_len - tlen, causal_dim)), cs[-1]], axis=1)
+            d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
+            rtg[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / scale
+            timesteps[-1] = np.concatenate([np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1)
+            mask.append(np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1))
+
+        s = torch.from_numpy(np.concatenate(s, axis=0)).to(dtype=torch.float32, device=device)
+        a = torch.from_numpy(np.concatenate(a, axis=0)).to(dtype=torch.float32, device=device)
+        r = torch.from_numpy(np.concatenate(r, axis=0)).to(dtype=torch.float32, device=device)
+        cs = torch.from_numpy(np.concatenate(cs, axis=0)).to(dtype=torch.float32, device=device)
+        d = torch.from_numpy(np.concatenate(d, axis=0)).to(dtype=torch.long, device=device)
+        rtg = torch.from_numpy(np.concatenate(rtg, axis=0)).to(dtype=torch.float32, device=device)
+        timesteps = torch.from_numpy(np.concatenate(timesteps, axis=0)).to(dtype=torch.long, device=device)
+        mask = torch.from_numpy(np.concatenate(mask, axis=0)).to(device=device)
+
+        return s, a, r, cs, d, rtg, timesteps, mask
 
     def eval_episodes(target_rew):
         def fn(model):
@@ -229,21 +292,33 @@ def experiment(
             }
         return fn
 
-    if model_type == 'dt':
-        model = DecisionTransformer(
-            state_dim=state_dim,
-            act_dim=act_dim,
-            max_length=K,
-            max_ep_len=max_ep_len,
-            hidden_size=variant['embed_dim'],
-            n_layer=variant['n_layer'],
-            n_head=variant['n_head'],
-            n_inner=4*variant['embed_dim'],
-            activation_function=variant['activation_function'],
-            n_positions=1024,
-            resid_pdrop=variant['dropout'],
-            attn_pdrop=variant['dropout'],
-        )
+    parameters = {
+        "state_dim": state_dim,
+        "act_dim": act_dim,
+        "max_length": K,
+        "max_ep_len": max_ep_len,
+        "hidden_sizef": variant['embed_dim'],
+        "n_layer": variant['n_layer'],
+        "n_head": variant['n_head'],
+        "n_inner": 4 * variant['embed_dim'],
+        "activation_function": variant['activation_function'],
+        "n_positions": 1024,
+        "resid_pdrop": variant['dropout'],
+        "attn_pdrop": variant['dropout'],
+        'return_dict': False
+    }
+
+    if model_type == 'dt' and causal_dim is None:
+        config = DecisionTransformerConfig(**parameters)
+        model = DecisionTransformerModel(config)
+    elif causal_version == 'v1':
+        parameters["causal_structure_dim"] = causal_dim
+        config = CausalDecisionTransformerConfig(**parameters)
+        model = CausalDecisionTransformerModelV1(config)
+    elif causal_version == 'v2':
+        parameters["causal_structure_dim"] = causal_dim
+        config = CausalDecisionTransformerConfig(**parameters)
+        model = CausalDecisionTransformerModelV1(config)
     elif model_type == 'bc':
         model = MLPBCModel(
             state_dim=state_dim,
@@ -268,12 +343,22 @@ def experiment(
         lambda steps: min((steps+1)/warmup_steps, 1)
     )
 
-    if model_type == 'dt':
+    if model_type == 'dt' and causal_version is None:
         trainer = SequenceTrainer(
             model=model,
             optimizer=optimizer,
             batch_size=batch_size,
             get_batch=get_batch,
+            scheduler=scheduler,
+            loss_fn=lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a)**2),
+            eval_fns=[eval_episodes(tar) for tar in env_targets],
+        )
+    elif model_type == 'dt' and causal_version is not None:
+        trainer = CausalSequenceTrainer(
+            model=model,
+            optimizer=optimizer,
+            batch_size=batch_size,
+            get_batch=get_causal_batch,
             scheduler=scheduler,
             loss_fn=lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a)**2),
             eval_fns=[eval_episodes(tar) for tar in env_targets],
@@ -328,8 +413,10 @@ if __name__ == '__main__':
     parser.add_argument('--num_eval_episodes', type=int, default=100)
     parser.add_argument('--max_iters', type=int, default=10)
     parser.add_argument('--num_steps_per_iter', type=int, default=10000)
-    parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument('--device', type=str, default='cpu')
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
+    parser.add_argument('--causal_dim', type=int, default=6)
+    parser.add_argument('--causal_version', type=str, default='v1')
     
     args = parser.parse_args()
 

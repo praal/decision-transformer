@@ -144,7 +144,6 @@ class CausalDecisionTransformerModelV1(DecisionTransformerPreTrainedModel):
 
         # this makes the sequence look like (c_1, R_1, s_1, a_1, R_2, s_2, a_2, ...)
         # which works nice in an autoregressive sense since states predict actions
-        print(returns_embeddings.shape)
         stacked_inputs = (
             torch.stack((causal_structure_embeddings, returns_embeddings, state_embeddings, action_embeddings), dim=1)
             .permute(0, 2, 1, 3)
