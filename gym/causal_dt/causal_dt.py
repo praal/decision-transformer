@@ -188,6 +188,48 @@ class CausalDecisionTransformerModelV1(DecisionTransformerPreTrainedModel):
             hidden_states=encoder_outputs.hidden_states,
             attentions=encoder_outputs.attentions,
         )
+    def get_action(self, states, actions, causal_structure, rewards, returns_to_go, timesteps, **kwargs):
+        # we don't care about the past rewards in this model
+
+        states = states.reshape(1, -1, self.config.state_dim)
+        causal_structure = causal_structure[0].reshape(1, -1, self.config.causal_structure_dim)
+        actions = actions.reshape(1, -1, self.config.act_dim)
+        returns_to_go = returns_to_go.reshape(1, -1, 1)
+        timesteps = timesteps.reshape(1, -1)
+
+        if self.config.max_length is not None:
+            states = states[:,-self.config.max_length:]
+            causal_structure = causal_structure[:,-self.config.max_length:]
+            actions = actions[:,-self.config.max_length:]
+            returns_to_go = returns_to_go[:,-self.config.max_length:]
+            timesteps = timesteps[:,-self.config.max_length:]
+
+            # pad all tokens to sequence length
+            attention_mask = torch.cat([torch.zeros(self.config.max_length-states.shape[1]), torch.ones(states.shape[1])])
+            attention_mask = attention_mask.to(dtype=torch.long, device=states.device).reshape(1, -1)
+            states = torch.cat(
+                [torch.zeros((states.shape[0], self.config.max_length-states.shape[1], self.config.state_dim), device=states.device), states],
+                dim=1).to(dtype=torch.float32)
+            causal_structure = torch.cat(
+                [torch.zeros((causal_structure.shape[0], self.config.max_length-causal_structure.shape[1], self.config.causal_structure_dim), device=causal_structure.device), causal_structure],dim=1).to(dtype=torch.float32)
+            actions = torch.cat(
+                [torch.zeros((actions.shape[0], self.config.max_length - actions.shape[1], self.config.act_dim),
+                             device=actions.device), actions],
+                dim=1).to(dtype=torch.float32)
+            returns_to_go = torch.cat(
+                [torch.zeros((returns_to_go.shape[0], self.config.max_length-returns_to_go.shape[1], 1), device=returns_to_go.device), returns_to_go],
+                dim=1).to(dtype=torch.float32)
+            timesteps = torch.cat(
+                [torch.zeros((timesteps.shape[0], self.config.max_length-timesteps.shape[1]), device=timesteps.device), timesteps],
+                dim=1
+            ).to(dtype=torch.long)
+        else:
+            attention_mask = None
+
+        _, action_preds, return_preds = self.forward(
+            states, actions,  None, causal_structure, returns_to_go, timesteps, attention_mask=attention_mask, **kwargs)
+
+        return action_preds[0,-1]
 
 
 @add_start_docstrings("The Causal Decision Transformer Model V2", DECISION_TRANSFORMER_START_DOCSTRING)

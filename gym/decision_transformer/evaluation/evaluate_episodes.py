@@ -66,6 +66,7 @@ def evaluate_episode_rtg(
         env,
         state_dim,
         act_dim,
+        causal_dim,
         model,
         max_ep_len=1000,
         scale=1000.,
@@ -82,13 +83,16 @@ def evaluate_episode_rtg(
     state_mean = torch.from_numpy(state_mean).to(device=device)
     state_std = torch.from_numpy(state_std).to(device=device)
 
-    state = env.reset()
+    state_causal = env.reset()
+    state = state_causal[0]
+    causal_info = state_causal[1]
     if mode == 'noise':
         state = state + np.random.normal(0, 0.1, size=state.shape)
 
     # we keep all the histories on the device
     # note that the latest action and reward will be "padding"
     states = torch.from_numpy(state).reshape(1, state_dim).to(device=device, dtype=torch.float32)
+    causal_structure = torch.from_numpy(causal_info).reshape(1, causal_dim).to(device=device, dtype=torch.float32)
     actions = torch.zeros((0, act_dim), device=device, dtype=torch.float32)
     rewards = torch.zeros(0, device=device, dtype=torch.float32)
 
@@ -104,10 +108,10 @@ def evaluate_episode_rtg(
         # add padding
         actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
         rewards = torch.cat([rewards, torch.zeros(1, device=device)])
-
         action = model.get_action(
             (states.to(dtype=torch.float32) - state_mean) / state_std,
             actions.to(dtype=torch.float32),
+            causal_structure.to(dtype=torch.float32),
             rewards.to(dtype=torch.float32),
             target_return.to(dtype=torch.float32),
             timesteps.to(dtype=torch.long),
@@ -115,10 +119,13 @@ def evaluate_episode_rtg(
         actions[-1] = action
         action = action.detach().cpu().numpy()
         int_act = np.argmax(action)
-        state, reward, done, _ = env.step(int_act)
-
+        state_causal, reward, done, _ = env.step(int_act)
+        state = state_causal[0]
+        causal_info = state_causal[1]
         cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
+        cur_causal_info = torch.from_numpy(causal_info).to(device=device).reshape(1, causal_dim)
         states = torch.cat([states, cur_state], dim=0)
+        causal_structure = torch.cat([causal_structure, cur_causal_info], dim=0)
         rewards[-1] = reward
 
         if mode != 'delayed':

@@ -16,7 +16,7 @@ from decision_transformer.training.seq_trainer import SequenceTrainer
 from decision_transformer.training.causal_seq_trainer import CausalSequenceTrainer
 from causal_dt.causal_dt import CausalDecisionTransformerModelV1, CausalDecisionTransformerModelV2, CausalDecisionTransformerConfig
 
-from transformers.models.decision_transformer import DecisionTransformerModel, DecisionTransformerConfig
+from transformers import DecisionTransformerModel, DecisionTransformerConfig
 from src.craft import Craft
 
 # from dm_alchemy import symbolic_alchemy
@@ -90,7 +90,7 @@ def experiment(
     if model_type == 'bc':
         env_targets = env_targets[:1]  # since BC ignores target, no need for different evaluations
 
-    state_dim = env.observation_space().shape[0]
+    state_dim = (env.observation_space())[0].shape[0]
     print(state_dim, env_targets, env_name)
     act_dim = env.action_space()
 
@@ -260,6 +260,7 @@ def experiment(
                             env,
                             state_dim,
                             act_dim,
+                            causal_dim,
                             model,
                             max_ep_len=max_ep_len,
                             scale=scale,
@@ -315,6 +316,7 @@ def experiment(
         parameters["causal_structure_dim"] = causal_dim
         config = CausalDecisionTransformerConfig(**parameters)
         model = CausalDecisionTransformerModelV1(config)
+        print("causal huggingface")
     elif causal_version == 'v2':
         parameters["causal_structure_dim"] = causal_dim
         config = CausalDecisionTransformerConfig(**parameters)
@@ -410,9 +412,9 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', '-lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', '-wd', type=float, default=1e-4)
     parser.add_argument('--warmup_steps', type=int, default=10000)
-    parser.add_argument('--num_eval_episodes', type=int, default=100)
+    parser.add_argument('--num_eval_episodes', type=int, default=10000)
     parser.add_argument('--max_iters', type=int, default=10)
-    parser.add_argument('--num_steps_per_iter', type=int, default=10000)
+    parser.add_argument('--num_steps_per_iter', type=int, default=10)
     parser.add_argument('--device', type=str, default='cpu')
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
     parser.add_argument('--causal_dim', type=int, default=6)

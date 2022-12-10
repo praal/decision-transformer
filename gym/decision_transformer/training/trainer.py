@@ -24,16 +24,17 @@ class Trainer:
         logs = dict()
 
         train_start = time.time()
-
+        print("start of iteration")
         self.model.train()
-        for _ in range(num_steps):
+        for i in range(num_steps):
+            if i % 1000 == 0:
+                print("train step", i)
             train_loss = self.train_step()
             train_losses.append(train_loss)
             if self.scheduler is not None:
                 self.scheduler.step()
 
         logs['time/training'] = time.time() - train_start
-
         eval_start = time.time()
 
         self.model.eval()
