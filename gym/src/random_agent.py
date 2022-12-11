@@ -46,9 +46,9 @@ def generate_dataset():
         #    graph[p[i]][p[i + 1]] = 1
         print(p)
        # print(graph)
-        env = Craft("./maps/fourobjects.txt", rng, order=p, causal=False)
-        episodes = 500
-        episode_len = 100
+        env = Craft("./maps/fiveobjects.txt", rng, order=p, causal=False)
+        episodes = 100
+        episode_len = 120
         success_eps = 0
         for _ in range(episodes):
             tmp = {'observations': [], 'actions': [], 'rewards': [], 'dones': []}
@@ -79,12 +79,11 @@ def generate_dataset():
             tmp['dones'] = np.array(tmp['dones'])
             dataset.append(tmp)
 
-        while(success_eps < 2):
+        while(success_eps < 1):
             tmp = {'observations': [], 'actions': [], 'rewards': [], 'dones': []}
             env.reset()
             for t in range(episode_len):
                 s0 = env.state
-                cnt += 1
                 one_hot_state = env.get_one_hot_state()
                 a = env.rng.randint(0, env.num_actions - 1)
                 s1, reward, done, info = env.step(a)
@@ -98,7 +97,7 @@ def generate_dataset():
                     success_eps += 1
                     print(t, "observations", [s0.uid[0], s0.uid[1]] + [int(elem) for elem in s0.uid[2]], "next", s1,
                           "actions", a, "rewards", reward, "dones", done)
-
+                    cnt += 1
                     tmp['observations'] = np.array(tmp['observations'])
                     tmp['actions'] = np.array(tmp['actions'])
                     tmp['rewards'] = np.array(tmp['rewards'])
@@ -189,6 +188,6 @@ generate_dataset()
 print(dataset[-1]['observations'])
 print(len(dataset[-1]['observations'][-1]))
 random.shuffle(dataset)
-with open("craft-star-v1.pkl", 'wb') as handle:
+with open("craft-five-v1.pkl", 'wb') as handle:
     pickle.dump(dataset, handle)
 #test()

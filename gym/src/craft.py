@@ -15,7 +15,7 @@ ACTIONS: List[Tuple[int, int]] = [
 ]
 
 OBJECTS = dict([(v, k) for k, v in enumerate(
-   ["wood", "iron", "gold", "gem"])])
+   ["wood", "iron", "gold", "gem", "ring"])])
 
 def update_facts(facts: Sequence[bool], objects: Observation, graph, do_action = False) -> Set[int]:
     state = set([i for i, v in enumerate(facts) if v])
@@ -69,6 +69,7 @@ MAPPING: Mapping[str, FrozenSet[str]] = {
     'f': frozenset(["iron"]),
     'g': frozenset(["gold"]),
     'h': frozenset(["gem"]),
+    'k': frozenset(["ring"]),
     ' ': frozenset(),
     }
 
@@ -104,9 +105,10 @@ class Craft(Environment):
         if self.order is None:
             self.order = np.random.permutation(len(OBJECTS))
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
-            self.graph[self.order[0]][self.order[2]] = 1
-            for i in range(1, len(self.order) - 1):
-                self.graph[self.order[i]][self.order[i + 1]] = 1
+            for i in range(len(self.order) - 1):
+                if i != 1:
+                    self.graph[self.order[i]][self.order[i + 1]] = 1
+                self.graph[self.order[i]][self.order[-1]] = 1
 
         super().__init__(CraftState.random(self.rng, self.map_data))
 
@@ -181,9 +183,11 @@ class Craft(Environment):
                         next_goals.append(ind + 2)
             if len(next_goals) == 1:
                 next_goals.append(0)
+
             elif len(next_goals) == 0:
                 next_goals.append(0)
                 next_goals.append(0)
+
            # if true_facts < len(OBJECTS):
               #  next_goal = self.order[true_facts] + 2
 
@@ -211,23 +215,26 @@ class Craft(Environment):
             #if self.graph is None:
             self.order = np.random.permutation(len(OBJECTS))
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
-            self.graph[self.order[0]][self.order[2]] = 1
-            for i in range(1, len(self.order) - 1):
-                self.graph[self.order[i]][self.order[i + 1]] = 1
+            for i in range(len(self.order) - 1):
+                if i != 1:
+                    self.graph[self.order[i]][self.order[i + 1]] = 1
+                self.graph[self.order[i]][self.order[-1]] = 1
         elif order is not None:
             self.state = CraftState.random(self.rng, self.map_data)
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
-            self.graph[self.order[0]][self.order[2]] = 1
-            for i in range(1, len(self.order) - 1):
-                self.graph[self.order[i]][self.order[i + 1]] = 1
+            for i in range(len(self.order) - 1):
+                if i != 1:
+                    self.graph[self.order[i]][self.order[i + 1]] = 1
+                self.graph[self.order[i]][self.order[-1]] = 1
         else:
             self.state = CraftState.random(self.rng, self.map_data)
             #if self.graph is None:
             self.order = np.random.permutation(len(OBJECTS))
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
-            self.graph[self.order[0]][self.order[2]] = 1
-            for i in range(1, len(self.order) - 1):
-                self.graph[self.order[i]][self.order[i + 1]] = 1
+            for i in range(len(self.order) - 1):
+                if i != 1:
+                    self.graph[self.order[i]][self.order[i + 1]] = 1
+                self.graph[self.order[i]][self.order[-1]] = 1
         return self.get_one_hot_state()
 
 
