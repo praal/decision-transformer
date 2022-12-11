@@ -8,18 +8,19 @@ import pickle
 import random
 import sys
 
-from decision_transformer.evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg
-# from decision_transformer.models.decision_transformer import DecisionTransformer
+from decision_transformer.evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg, evaluate_episode_rtg_causal
+from decision_transformer.models.decision_transformer import DecisionTransformer
 from decision_transformer.models.mlp_bc import MLPBCModel
 from decision_transformer.training.act_trainer import ActTrainer
 from decision_transformer.training.seq_trainer import SequenceTrainer
 from decision_transformer.training.causal_seq_trainer import CausalSequenceTrainer
-from causal_dt.causal_dt import CausalDecisionTransformerModelV1, CausalDecisionTransformerModelV2, CausalDecisionTransformerConfig
+# from causal_dt.causal_dt import CausalDecisionTransformerModelV1, CausalDecisionTransformerModelV2, CausalDecisionTransformerConfig
 
-from transformers import DecisionTransformerModel, DecisionTransformerConfig
+# from transformers import DecisionTransformerModel, DecisionTransformerConfig
 from src.craft import Craft
 
 # from dm_alchemy import symbolic_alchemy
+
 
 def discount_cumsum(x, gamma):
     discount_cumsum = np.zeros_like(x)
@@ -33,6 +34,7 @@ def experiment(
         exp_prefix,
         variant
 ):
+    print("Started the experiment")
     device = variant.get('device', 'cuda')
     log_to_wandb = variant.get('log_to_wandb', False)
     causal_dim = variant["causal_dim"]
@@ -41,6 +43,8 @@ def experiment(
     model_type = variant['model_type']
     group_name = f'{exp_prefix}-{env_name}-{dataset}'
     exp_prefix = f'{group_name}-{random.randint(int(1e5), int(1e6) - 1)}'
+
+    print("Loading the env")
 
     if env_name == 'hopper':
         env = gym.make('Hopper-v3')
@@ -63,7 +67,7 @@ def experiment(
         max_ep_len = 100
         env_targets = [76, 40]
         scale = 10.
-     
+
     elif env_name == 'alchemy':
         max_ep_len = 200
         level_name = 'alchemy/perceptual_mapping_randomized_with_rotation_and_random_bottleneck'
@@ -77,7 +81,7 @@ def experiment(
         env = Craft("./src/maps/fourobjects.txt", rng, causal=False)
         env_targets = [0, 1, 2, 3, 4]
         scale = 1.
-    elif env_name == 'craftcausal':
+    elif env_name == 'craft-causal':
         max_ep_len = 100
         seed = 2022
         rng = random.Random(seed)
@@ -87,17 +91,21 @@ def experiment(
     else:
         raise NotImplementedError
 
+    print("The env is loaded")
+
     if model_type == 'bc':
         env_targets = env_targets[:1]  # since BC ignores target, no need for different evaluations
 
     state_dim = (env.observation_space())[0].shape[0]
-    print(state_dim, env_targets, env_name)
     act_dim = env.action_space()
 
     # load dataset
-    dataset_path = f'data/craft-{dataset}-v1.pkl'
+    print("Loading a dataset")
+    dataset_path = f'data/{env_name}-{dataset}-v1.pkl'
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
+
+    print("The dataset is loaded")
 
     # save all path information into separate lists
     mode = variant.get('mode', 'normal')
@@ -194,7 +202,7 @@ def experiment(
         mask = torch.from_numpy(np.concatenate(mask, axis=0)).to(device=device)
 
         return s, a, r, d, rtg, timesteps, mask
-    
+
     def get_causal_batch(batch_size=256, max_len=K):
         batch_inds = np.random.choice(
             np.arange(num_trajectories),
@@ -255,8 +263,24 @@ def experiment(
             returns, lengths = [], []
             for _ in range(num_eval_episodes):
                 with torch.no_grad():
-                    if model_type == 'dt':
+                    if model_type == 'dt' and causal_dim is None:
+                        print("Evaluating an RTG episode")
                         ret, length = evaluate_episode_rtg(
+                            env,
+                            state_dim,
+                            act_dim,
+                            model,
+                            max_ep_len=max_ep_len,
+                            scale=scale,
+                            target_return=target_rew/scale,
+                            mode=mode,
+                            state_mean=state_mean,
+                            state_std=state_std,
+                            device=device,
+                        )
+                    elif model_type == 'dt' and causal_dim is not None:
+                        print("Evaluating an RTG causal episode")
+                        ret, length = evaluate_episode_rtg_causal(
                             env,
                             state_dim,
                             act_dim,
@@ -269,7 +293,7 @@ def experiment(
                             state_mean=state_mean,
                             state_std=state_std,
                             device=device,
-                        )
+                        )  
                     else:
                         ret, length = evaluate_episode(
                             env,
@@ -298,7 +322,7 @@ def experiment(
         "act_dim": act_dim,
         "max_length": K,
         "max_ep_len": max_ep_len,
-        "hidden_sizef": variant['embed_dim'],
+        "hidden_size": variant['embed_dim'],
         "n_layer": variant['n_layer'],
         "n_head": variant['n_head'],
         "n_inner": 4 * variant['embed_dim'],
@@ -306,12 +330,11 @@ def experiment(
         "n_positions": 1024,
         "resid_pdrop": variant['dropout'],
         "attn_pdrop": variant['dropout'],
-        'return_dict': False
+        'return_dict': True
     }
 
     if model_type == 'dt' and causal_dim is None:
-        config = DecisionTransformerConfig(**parameters)
-        model = DecisionTransformerModel(config)
+        model = DecisionTransformer(**parameters)
     elif causal_version == 'v1':
         parameters["causal_structure_dim"] = causal_dim
         config = CausalDecisionTransformerConfig(**parameters)
@@ -383,13 +406,14 @@ def experiment(
             project='decision-transformer',
             config=variant
         )
+
         # wandb.watch(model)  # wandb has some bug
 
     for iter in range(variant['max_iters']):
         outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
         if log_to_wandb:
             wandb.log(outputs)
-        #if iter % 2 == 0:
+        # if iter % 2 == 0:
            # PATH = "./DT-Craft/"
            # PATH += f'craft-easy-{iter}'
            # torch.save(model, PATH)
@@ -412,14 +436,14 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', '-lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', '-wd', type=float, default=1e-4)
     parser.add_argument('--warmup_steps', type=int, default=10000)
-    parser.add_argument('--num_eval_episodes', type=int, default=10000)
+    parser.add_argument('--num_eval_episodes', type=int, default=100)
     parser.add_argument('--max_iters', type=int, default=10)
     parser.add_argument('--num_steps_per_iter', type=int, default=10)
-    parser.add_argument('--device', type=str, default='cpu')
+    parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
-    parser.add_argument('--causal_dim', type=int, default=6)
-    parser.add_argument('--causal_version', type=str, default='v1')
-    
+    parser.add_argument('--causal_dim', type=int, default=None)
+    parser.add_argument('--causal_version', type=str, default=None)
+
     args = parser.parse_args()
 
     experiment('gym-experiment', variant=vars(args))

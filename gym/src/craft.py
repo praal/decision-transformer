@@ -2,7 +2,7 @@ import logging
 from random import Random
 from typing import FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple
 
-from rl.environment import Environment, Observation, State
+from .rl.environment import Environment, Observation, State
 import numpy as np
 
 
@@ -210,6 +210,7 @@ class Craft(Environment):
             self.graph = np.zeros([len(OBJECTS), len(OBJECTS)])
             for i in range(len(self.order) - 1):
                 self.graph[self.order[i]][self.order[i+1]] = 1
+                
         return self.get_one_hot_state()
 
 

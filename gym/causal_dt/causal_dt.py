@@ -138,6 +138,7 @@ class CausalDecisionTransformerModelV1(DecisionTransformerPreTrainedModel):
         causal_structure_embeddings = self.embed_causal_structure(causal_structure)
 
         # time embeddings are treated similar to positional embeddings
+        causal_structure_embeddings = causal_structure_embeddings + time_embeddings
         state_embeddings = state_embeddings + time_embeddings
         action_embeddings = action_embeddings + time_embeddings
         returns_embeddings = returns_embeddings + time_embeddings

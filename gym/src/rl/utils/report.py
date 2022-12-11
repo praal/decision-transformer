@@ -4,7 +4,7 @@ from typing import IO, Sequence
 
 from ..environment import State
 
-import rl
+from ..rl import *
 
 
 class Report:
