@@ -135,7 +135,7 @@ class CausalDecisionTransformerV1(TrajectoryModel):
                 dim=1).to(dtype=torch.float32)
 
             causal_structure = torch.cat(
-                [torch.zeros((causal_structure.shape[0], self.max_length-causal_structure.shape[1], 1), device=causal_structure.device), causal_structure],
+                [torch.zeros((causal_structure.shape[0], self.max_length-causal_structure.shape[1], self.causal_dim), device=causal_structure.device), causal_structure],
                 dim=1).to(dtype=torch.float32)
 
             timesteps = torch.cat(
@@ -238,7 +238,7 @@ class CausalDecisionTransformerV2(TrajectoryModel):
 
         # reshape x so that the second dimension corresponds to the original
         # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
-        x = x.reshape(batch_size, seq_length, 4, self.hidden_size).permute(0, 2, 1, 3)
+        x = x.reshape(batch_size, seq_length, 3, self.hidden_size).permute(0, 2, 1, 3)
 
         # get predictions
         return_preds = self.predict_return(x[:,2])  # predict next return given state and action
@@ -279,7 +279,7 @@ class CausalDecisionTransformerV2(TrajectoryModel):
                 dim=1).to(dtype=torch.float32)
 
             causal_structure = torch.cat(
-                [torch.zeros((causal_structure.shape[0], self.max_length-causal_structure.shape[1], 1), device=causal_structure.device), causal_structure],
+                [torch.zeros((causal_structure.shape[0], self.max_length-causal_structure.shape[1], self.causal_dim), device=causal_structure.device), causal_structure],
                 dim=1).to(dtype=torch.float32)
 
             timesteps = torch.cat(

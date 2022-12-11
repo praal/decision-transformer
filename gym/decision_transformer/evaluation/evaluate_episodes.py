@@ -41,7 +41,6 @@ def evaluate_episode(
         action = model.get_action(
             (states.to(dtype=torch.float32) - state_mean) / state_std,
             actions.to(dtype=torch.float32),
-
             target_return=target_return,
         )
         actions[-1] = action
@@ -164,7 +163,7 @@ def evaluate_episode_rtg_causal(
     state_std = torch.from_numpy(state_std).to(device=device)
 
     state, causal_info = env.reset()
-    
+
     if mode == 'noise':
         state = state + np.random.normal(0, 0.1, size=state.shape)
 
@@ -190,20 +189,23 @@ def evaluate_episode_rtg_causal(
         action = model.get_action(
             (states.to(dtype=torch.float32) - state_mean) / state_std,
             actions.to(dtype=torch.float32),
-            causal_structure.to(dtype=torch.float32),
             rewards.to(dtype=torch.float32),
+            causal_structure.to(dtype=torch.float32),
             target_return.to(dtype=torch.float32),
             timesteps.to(dtype=torch.long),
         )
         actions[-1] = action
         action = action.detach().cpu().numpy()
         int_act = np.argmax(action)
+
         state_causal, reward, done, _ = env.step(int_act)
         state = state_causal[0]
         causal_info = state_causal[1]
+
         cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
-        cur_causal_info = torch.from_numpy(causal_info).to(device=device).reshape(1, causal_dim)
         states = torch.cat([states, cur_state], dim=0)
+        
+        cur_causal_info = torch.from_numpy(causal_info).to(device=device).reshape(1, causal_dim)
         causal_structure = torch.cat([causal_structure, cur_causal_info], dim=0)
         rewards[-1] = reward
 
