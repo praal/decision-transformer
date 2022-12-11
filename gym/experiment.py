@@ -15,13 +15,13 @@ from decision_transformer.training.act_trainer import ActTrainer
 from decision_transformer.training.seq_trainer import SequenceTrainer
 from src.craft import Craft
 
-from dm_alchemy import symbolic_alchemy
+
 
 def discount_cumsum(x, gamma):
     discount_cumsum = np.zeros_like(x)
     discount_cumsum[-1] = x[-1]
-    for t in reversed(range(x.shape[0]-1)):
-        discount_cumsum[t] = x[t] + gamma * discount_cumsum[t+1]
+    for t in reversed(range(x.shape[0] - 1)):
+        discount_cumsum[t] = x[t] + gamma * discount_cumsum[t + 1]
     return discount_cumsum
 
 
@@ -58,7 +58,7 @@ def experiment(
         max_ep_len = 100
         env_targets = [76, 40]
         scale = 10.
-     
+
     elif env_name == 'alchemy':
         max_ep_len = 200
         level_name = 'alchemy/perceptual_mapping_randomized_with_rotation_and_random_bottleneck'
@@ -66,11 +66,18 @@ def experiment(
         env_targets = []
         scale = 100.
     elif env_name == 'craft':
-        max_ep_len = 80
+        max_ep_len = 100
         seed = 2022
         rng = random.Random(seed)
-        env = Craft("./src/maps/fourobjects.txt", rng)
-        env_targets = [0, 0.1, 0.5, 1]
+        env = Craft("./src/maps/fourobjects.txt", rng, causal=False)
+        env_targets = [0, 1, 2, 3, 4]
+        scale = 1.
+    elif env_name == 'craftcausal':
+        max_ep_len = 100
+        seed = 2022
+        rng = random.Random(seed)
+        env = Craft("./src/maps/fourobjects.txt", rng, causal=True)
+        env_targets = [0, 1, 2, 3, 4]
         scale = 1.
     else:
         raise NotImplementedError
@@ -79,11 +86,11 @@ def experiment(
         env_targets = env_targets[:1]  # since BC ignores target, no need for different evaluations
 
     state_dim = env.observation_space().shape[0]
-    print(state_dim)
+    print(state_dim, env_targets, env_name)
     act_dim = env.action_space()
 
     # load dataset
-    dataset_path = f'data/{env_name}-{dataset}-v1.pkl'
+    dataset_path = f'data/craft-{dataset}-v1.pkl'
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -118,7 +125,7 @@ def experiment(
     pct_traj = variant.get('pct_traj', 1.)
 
     # only train on top pct_traj trajectories (for %BC experiment)
-    num_timesteps = max(int(pct_traj*num_timesteps), 1)
+    num_timesteps = max(int(pct_traj * num_timesteps), 1)
     sorted_inds = np.argsort(returns)  # lowest to highest
     num_trajectories = 1
     timesteps = traj_lens[sorted_inds[-1]]
@@ -146,8 +153,6 @@ def experiment(
             si = random.randint(0, traj['rewards'].shape[0] - 1)
 
             # get sequences from dataset
-            print(traj['observations'][si:si + max_len])
-            print(traj['observations'][si:si + max_len].shape)
             s.append(traj['observations'][si:si + max_len].reshape(1, -1, state_dim))
             a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))
             r.append(traj['rewards'][si:si + max_len].reshape(1, -1, 1))
@@ -156,7 +161,7 @@ def experiment(
             else:
                 d.append(traj['dones'][si:si + max_len].reshape(1, -1))
             timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
-            timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
+            timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len - 1  # padding cutoff
             rtg.append(discount_cumsum(traj['rewards'][si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
             if rtg[-1].shape[1] <= s[-1].shape[1]:
                 rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
@@ -195,7 +200,7 @@ def experiment(
                             model,
                             max_ep_len=max_ep_len,
                             scale=scale,
-                            target_return=target_rew/scale,
+                            target_return=target_rew / scale,
                             mode=mode,
                             state_mean=state_mean,
                             state_std=state_std,
@@ -208,7 +213,7 @@ def experiment(
                             act_dim,
                             model,
                             max_ep_len=max_ep_len,
-                            target_return=target_rew/scale,
+                            target_return=target_rew / scale,
                             mode=mode,
                             state_mean=state_mean,
                             state_std=state_std,
@@ -222,6 +227,7 @@ def experiment(
                 f'target_{target_rew}_length_mean': np.mean(lengths),
                 f'target_{target_rew}_length_std': np.std(lengths),
             }
+
         return fn
 
     if model_type == 'dt':
@@ -233,7 +239,7 @@ def experiment(
             hidden_size=variant['embed_dim'],
             n_layer=variant['n_layer'],
             n_head=variant['n_head'],
-            n_inner=4*variant['embed_dim'],
+            n_inner=4 * variant['embed_dim'],
             activation_function=variant['activation_function'],
             n_positions=1024,
             resid_pdrop=variant['dropout'],
@@ -260,7 +266,7 @@ def experiment(
     )
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
-        lambda steps: min((steps+1)/warmup_steps, 1)
+        lambda steps: min((steps + 1) / warmup_steps, 1)
     )
 
     if model_type == 'dt':
@@ -270,7 +276,7 @@ def experiment(
             batch_size=batch_size,
             get_batch=get_batch,
             scheduler=scheduler,
-            loss_fn=lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a)**2),
+            loss_fn=lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a) ** 2),
             eval_fns=[eval_episodes(tar) for tar in env_targets],
         )
     elif model_type == 'bc':
@@ -280,7 +286,7 @@ def experiment(
             batch_size=batch_size,
             get_batch=get_batch,
             scheduler=scheduler,
-            loss_fn=lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a)**2),
+            loss_fn=lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a) ** 2),
             eval_fns=[eval_episodes(tar) for tar in env_targets],
         )
 
@@ -294,13 +300,13 @@ def experiment(
         # wandb.watch(model)  # wandb has some bug
 
     for iter in range(variant['max_iters']):
-        outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
+        outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter + 1, print_logs=True)
         if log_to_wandb:
             wandb.log(outputs)
-        if iter % 2 == 0:
-            PATH = "./DT-Craft/"
-            PATH += f'craft-easy-{iter}'
-            torch.save(model, PATH)
+        # if iter % 2 == 0:
+        # PATH = "./DT-Craft/"
+        # PATH += f'craft-easy-{iter}'
+        # torch.save(model, PATH)
 
 
 if __name__ == '__main__':
@@ -325,7 +331,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_steps_per_iter', type=int, default=10000)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
-    
+
     args = parser.parse_args()
 
     experiment('gym-experiment', variant=vars(args))

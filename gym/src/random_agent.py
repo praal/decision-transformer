@@ -41,18 +41,20 @@ def generate_dataset():
     cnt = 0
     all_permutations = list(itertools.permutations([i for i in range(len(OBJECTS))]))
     for p in all_permutations:
-        graph = np.zeros([len(OBJECTS), len(OBJECTS)])
-        for i in range(len(p) - 1):
-            graph[p[i]][p[i + 1]] = 1
+        #graph = np.zeros([len(OBJECTS), len(OBJECTS)])
+       # for i in range(len(p) - 1):
+        #    graph[p[i]][p[i + 1]] = 1
         print(p)
-        print(graph)
-        env = Craft("./maps/fourobjects.txt", rng, graph)
-        episodes = 10000
-        episode_len = 80
+       # print(graph)
+        env = Craft("./maps/fourobjects.txt", rng, order=p, causal=False)
+        episodes = 500
+        episode_len = 100
+        success_eps = 0
         for _ in range(episodes):
             tmp = {'observations': [], 'actions': [], 'rewards': [], 'dones': []}
-            env.reset()
+            env.reset(order=p)
             tot_reward = 0
+
             for t in range(episode_len):
                 s0 = env.state
                 cnt += 1
@@ -67,17 +69,46 @@ def generate_dataset():
                 tmp['rewards'].append(reward)
                 tmp['dones'].append(done)
                 if done:
-                   # print(tot_reward, "*")
+                    success_eps += 1
                     print(t,"observations", [s0.uid[0], s0.uid[1]] + [int(elem) for elem in s0.uid[2]], "next", s1, "actions", a, "rewards", reward, "dones", done)
+
                     break
             tmp['observations'] = np.array(tmp['observations'])
             tmp['actions'] = np.array(tmp['actions'])
             tmp['rewards'] = np.array(tmp['rewards'])
             tmp['dones'] = np.array(tmp['dones'])
             dataset.append(tmp)
+
+        while(success_eps < 2):
+            tmp = {'observations': [], 'actions': [], 'rewards': [], 'dones': []}
+            env.reset()
+            for t in range(episode_len):
+                s0 = env.state
+                cnt += 1
+                one_hot_state = env.get_one_hot_state()
+                a = env.rng.randint(0, env.num_actions - 1)
+                s1, reward, done, info = env.step(a)
+                tmp['observations'].append(one_hot_state)
+                one_hot_action = np.zeros(env.num_actions)
+                one_hot_action[a] = 1
+                tmp['actions'].append(one_hot_action)
+                tmp['rewards'].append(reward)
+                tmp['dones'].append(done)
+                if done:
+                    success_eps += 1
+                    print(t, "observations", [s0.uid[0], s0.uid[1]] + [int(elem) for elem in s0.uid[2]], "next", s1,
+                          "actions", a, "rewards", reward, "dones", done)
+
+                    tmp['observations'] = np.array(tmp['observations'])
+                    tmp['actions'] = np.array(tmp['actions'])
+                    tmp['rewards'] = np.array(tmp['rewards'])
+                    tmp['dones'] = np.array(tmp['dones'])
+                    dataset.append(tmp)
+                    break
+
     #with open("craft-three-v3.pkl", 'wb') as handle:
        # pickle.dump(dataset, handle)
-    print(cnt, "##############")
+        print(cnt, "##############")
 def test():
     dataset_path = '../tfe-default-v2.pkl'
     with open(dataset_path, 'rb') as f:
@@ -155,8 +186,9 @@ def generate_qlearning_one_hot_dataset():
 
 #generate_qlearning_one_hot_dataset()
 generate_dataset()
+print(dataset[-1]['observations'])
 print(len(dataset[-1]['observations'][-1]))
 random.shuffle(dataset)
-with open("craft-fourrandom-v1.pkl", 'wb') as handle:
+with open("craft-star-v1.pkl", 'wb') as handle:
     pickle.dump(dataset, handle)
 #test()
