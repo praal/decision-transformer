@@ -7,9 +7,11 @@ import argparse
 import pickle
 import random
 import sys
+from tqdm import tqdm
 
 from decision_transformer.evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg, evaluate_episode_rtg_causal
 from decision_transformer.models.decision_transformer import DecisionTransformer
+from decision_transformer.models.causal_dt import CausalDecisionTransformerV1, CausalDecisionTransformerV2
 from decision_transformer.models.mlp_bc import MLPBCModel
 from decision_transformer.training.act_trainer import ActTrainer
 from decision_transformer.training.seq_trainer import SequenceTrainer
@@ -34,7 +36,6 @@ def experiment(
         exp_prefix,
         variant
 ):
-    print("Started the experiment")
     device = variant.get('device', 'cuda')
     log_to_wandb = variant.get('log_to_wandb', False)
     causal_dim = variant["causal_dim"]
@@ -261,10 +262,9 @@ def experiment(
     def eval_episodes(target_rew):
         def fn(model):
             returns, lengths = [], []
-            for _ in range(num_eval_episodes):
+            for _ in tqdm(range(num_eval_episodes)):
                 with torch.no_grad():
                     if model_type == 'dt' and causal_dim is None:
-                        print("Evaluating an RTG episode")
                         ret, length = evaluate_episode_rtg(
                             env,
                             state_dim,
@@ -279,7 +279,6 @@ def experiment(
                             device=device,
                         )
                     elif model_type == 'dt' and causal_dim is not None:
-                        print("Evaluating an RTG causal episode")
                         ret, length = evaluate_episode_rtg_causal(
                             env,
                             state_dim,
@@ -335,15 +334,14 @@ def experiment(
 
     if model_type == 'dt' and causal_dim is None:
         model = DecisionTransformer(**parameters)
-    elif causal_version == 'v1':
-        parameters["causal_structure_dim"] = causal_dim
-        config = CausalDecisionTransformerConfig(**parameters)
-        model = CausalDecisionTransformerModelV1(config)
-        print("causal huggingface")
-    elif causal_version == 'v2':
-        parameters["causal_structure_dim"] = causal_dim
-        config = CausalDecisionTransformerConfig(**parameters)
-        model = CausalDecisionTransformerModelV1(config)
+    elif causal_dim is not None:
+        parameters["causal_dim"] = causal_dim
+
+        if causal_version == 'v1':
+            model = CausalDecisionTransformerV1(**parameters)
+        else:
+            model = CausalDecisionTransformerV2(**parameters)
+
     elif model_type == 'bc':
         model = MLPBCModel(
             state_dim=state_dim,
